@@ -1,19 +1,19 @@
 module Puppet
-  module Parser
-    class Resource
+  class Type
 
-      # clearing out some puppet methods that we probably won't need for testing
-      # that are also used in the params hash when defining the resource.
-      undef path
-      undef source
-      undef require
-      
-      # This allows access to resource options as methods on the resource.
-      def method_missing name, *args
-        if params.keys.include? name.to_sym
-          params[name.to_sym].value
-        end
-      end
+    # clearing out some puppet methods that we probably won't need for testing
+    # that are also used in the params hash when defining the resource.
+    undef path
+    undef timeout
+    undef require
+
+    def params
+      @params ||= to_hash
+    end
+
+    # This allows access to resource options as methods on the resource.
+    def method_missing name, *args, &block
+      params[name.to_sym]
     end
   end
 end

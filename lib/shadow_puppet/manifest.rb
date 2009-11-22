@@ -75,7 +75,7 @@ module ShadowPuppet
 
     class_inheritable_accessor :recipes
     write_inheritable_attribute(:recipes, [])
-    attr_reader :puppet_resources
+    attr_reader :catalog
     class_inheritable_accessor :__config__
     write_inheritable_attribute(:__config__, Hash.new)
 
@@ -96,9 +96,7 @@ module ShadowPuppet
 
       configure(config)
       @executed = false
-      @puppet_resources = Hash.new do |hash, key|
-        hash[key] = {}
-      end
+      @catalog = Puppet::Resource::Catalog.new(Facter.value(:hostname))
     end
 
     # Declares that the named method or methods will be called whenever
@@ -203,7 +201,7 @@ module ShadowPuppet
           if args && args.flatten.size == 1
             reference(type.name, args.first)
           else
-            new_resource(type, args.first, args.last)
+            create_or_update_resource(type, args.first, args.last)
           end
         end
       end
@@ -265,29 +263,6 @@ module ShadowPuppet
       @executed
     end
 
-    #An Array of all currently defined resources.
-    def flat_resources
-      a = []
-      @puppet_resources.each_value do |by_type|
-        by_type.each_value do |by_name|
-          a << by_name
-        end
-      end
-      a
-    end
-
-    #A Puppet::TransBucket of all defined resoureces.
-    def export
-      transportable_objects = flat_resources.dup.reject { |a| a.nil? }.flatten.collect do |obj|
-        obj.to_trans
-      end
-      b = Puppet::TransBucket.new(transportable_objects)
-      b.name = name
-      b.type = "class"
-
-      return b
-    end
-
     private
 
     #Evaluate the methods calls queued in self.recipes
@@ -302,70 +277,44 @@ module ShadowPuppet
       end
     end
 
-    # Create a catalog of all contained Puppet Resources and apply that
-    # catalog to the currently running system
-    def apply(bucket = nil)
-      bucket ||= export()
-      catalog = bucket.to_catalog
+    # Apply and clear the catalog
+    def apply
       catalog.apply
       catalog.clear
     end
 
-    def scope #:nodoc:
-      unless defined?(@scope)
-        # Set the code to something innocuous; we just need the
-        # scopes, not the interpreter.  Hackish, but true.
-        Puppet[:code] = " "
-        @interp = Puppet::Parser::Interpreter.new
-        require 'puppet/node'
-        @node = Puppet::Node.new(Facter.value(:hostname))
-        if env = Puppet[:environment] and env == ""
-          env = nil
-        end
-        @node.parameters = Facter.to_hash
-        @compile = Puppet::Parser::Compiler.new(@node, @interp.send(:parser, env))
-        @scope = @compile.topscope
-      end
-      @scope
-    end
-
-    #Create a reference to another Puppet Resource.
+    # Create a reference to another Puppet Resource.
     def reference(type, title)
-      Puppet::Parser::Resource::Reference.new(:type => type.to_s, :title => title.to_s, :scope => scope)
+      if title
+        ref = Puppet::Resource::Reference.new(type, title)
+      else
+        ref = Puppet::Resource::Reference.new(nil, type)
+      end
     end
 
-    #Creates a new Puppet Resource.
-    def new_resource(type, name, params = {})
-      unless obj = @puppet_resources[type][name]
-        obj = Puppet::Parser::Resource.new(
-          :title => name,
-          :type => type.name,
-          :source => self,
-          :scope => scope
-        )
-        @puppet_resources[type][name] = obj
-      end
+    # Refer to a named puppet resource
+    def resource(type, title)
+      catalog.resource(type,title)
+    end
 
-      case type.name
-      when :exec
-        param = Puppet::Parser::Resource::Param.new(
-          :name => :path,
-          :value => ENV["PATH"],
-          :source => self
-        )
-        obj.send(:set_parameter, param)
-      end
+    # Create a Puppet Resource
+    def new_resource(type, title, params = {})
+      params.merge!({:title => title})
+      params.merge!({:catalog => catalog})
+      params.merge!({:path => ENV["PATH"]}) if type.name == :exec
+      catalog.create_resource(type.name, params)
+    end
 
-      params.each do |param_name, param_value|
-        param = Puppet::Parser::Resource::Param.new(
-          :name => param_name,
-          :value => param_value,
-          :source => self
-        )
-        obj.send(:set_parameter, param)
+    #Creates or update a new Puppet Resource.
+    def create_or_update_resource(type, title, params = {})
+      if resource = resource(type.name, title)
+        params.each do |param, value|
+          resource[param] = value
+        end
+      else
+        resource = new_resource(type, title, params)
       end
-
-      obj
+      resource
     end
 
   end

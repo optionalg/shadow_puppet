@@ -10,6 +10,11 @@ class NoOpManifest < ShadowPuppet::Manifest
   def bar
     exec('bar', :command => 'true')
   end
+
+  def update_bar
+    exec('bar', :command => 'true #updated')
+  end
+
 end
 
 #demonstrate the default method of satifying requirements: instance methods
@@ -89,7 +94,18 @@ class TestHelpers < ShadowPuppet::Manifest
   def foo
     exec('foo', :command => 'true',:onlyif => 'test `hostname` == "foo"')
     package('bar',:ensure => :installed)
-    file('baz', :content => 'bar',:mode => '644',:owner => 'rails')
+    file('/tmp/baz', :content => 'bar',:mode => '644',:owner => 'rails')
+  end
+
+end
+
+# setting up a few different resource types to test the test helpers
+class AliasManifest < ShadowPuppet::Manifest
+
+  configure(:foo => :bar)
+  def foo(string)
+    exec('true', :require => file('test'))
+    file('/tmp/moonshine_foo', :ensure => 'present', :content => string.to_s, :alias => 'test')
   end
 
 end

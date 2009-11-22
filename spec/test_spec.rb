@@ -30,8 +30,8 @@ describe "ShadowPuppet's test helpers" do
     it "should allow referencing params directly" do
       %w(execs files packages).each do |type|
         @manifest.send(type.to_sym).each do |name,resource|
-          resource.params.keys.each do |param|
-            resource.send(param.to_sym).should == resource.params[param.to_sym].value
+          (resource.params.keys-[:provider]).each do |param|
+            resource.send(param.to_sym).should == resource.params[param.to_sym]
           end
         end
       end

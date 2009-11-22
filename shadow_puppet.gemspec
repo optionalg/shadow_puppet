@@ -27,7 +27,7 @@ Gem::Specification.new do |s|
   s.rdoc_options << '--inline-source' << '--webcvs=http://github.com/railsmachine/shadow_puppet/tree/master/'
   s.extra_rdoc_files = ['README.rdoc', 'bin/shadow_puppet']
 
-  s.add_dependency('puppet', ["= 0.24.8"])
+  s.add_dependency('puppet', [">= 0.25.3"])
   s.add_dependency('facter', [">= 1.5.4"])
   s.add_dependency('highline', [">= 1.5.0"])
   s.add_dependency('builder', [">= 2.1.2"])

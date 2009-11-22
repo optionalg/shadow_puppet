@@ -38,8 +38,15 @@ describe "A manifest" do
         @manifest.execs.keys.sort.should == ['foo']
       end
 
-      it "applies our customizations to resources" do
-        @manifest.execs["foo"].path.should == ENV["PATH"]
+      it "updates params on existing resources if they previously existed" do
+        @manifest.bar
+        @manifest.exec('bar')[:command].should == 'true'
+        @manifest.update_bar
+        @manifest.execs['bar'].command.should == 'true #updated'
+      end
+
+      it "including our customizations to resources" do
+        @manifest.execs["foo"].path.should include('/sbin')
       end
 
       describe "and then executing" do
@@ -98,6 +105,17 @@ describe "A manifest" do
       @manifest.name.should == "#{@manifest.class}##{@manifest.object_id}"
     end
 
+    describe "supports aliases" do
+      before :each do
+        @manifest = AliasManifest.new
+        @manifest.foo('test')
+      end
+
+      it "on resources" do
+        @manifest.execute!.should be_true
+      end
+    end
+
     describe 'when evaluated' do
 
       it "calls specified methods" do
@@ -120,11 +138,7 @@ describe "A manifest" do
 
       it "creates new resources" do
         @manifest.send(:evaluate_recipes)
-        @manifest.puppet_resources[Puppet::Type::Exec].keys.sort.should == ['bar', 'foo']
-      end
-
-      it "can acess a flat array of resources" do
-        @manifest.send(:flat_resources).should == []
+        @manifest.execs.keys.sort.should == ['bar', 'foo']
       end
 
     end
