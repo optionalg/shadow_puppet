@@ -71,6 +71,39 @@ module ShadowPuppet
   #       :path => '/var/www/apps/foo'
   #     }
   #   end
+  #
+  # ==Testing
+  #
+  # To test that your manifest logic is working as intended, you should assert
+  # that the proper puppet resources exist:
+  #
+  #   manifest.execs('wget mysqltuner.pl')
+  #   manifest.packages('sshd')
+  #
+  # You can also access resource parameters as hash keys on the resource::
+  #
+  #   manifest.files('/etc/motd')[:content]
+  #   manifest.execs('service ssh restart')[:onlyif]
+  #
+  # ===Test::Unit Example
+  #
+  # Given this manifest:
+  #
+  #   class TestedManifest < ShadowPuppet::Manifest
+  #     def myrecipe
+  #       file '/etc/motd', :content => 'Welcome to the machine!', :mode => '644'
+  #       exec 'newaliases', :refreshonly => true
+  #     end
+  #     recipe :myrecipe
+  #   end
+  #
+  # A test for the manifest could look like this:
+  #
+  #   manifest = TestedManifest.new
+  #   manifest.myrecipe
+  #   assert_match /Welcome/, manifest.files('/etc/motd')[:content]
+  #   assert manifest.execs('newaliases')[:refreshonly]
+  #
   class Manifest
 
     class_inheritable_accessor :recipes

@@ -35,18 +35,18 @@ describe "A manifest" do
       end
 
       it "creates resources" do
-        @manifest.execs.keys.sort.should == ['foo']
+        @manifest.exec('foo').should_not be_nil
       end
 
       it "updates params on existing resources if they previously existed" do
         @manifest.bar
-        @manifest.exec('bar')[:command].should == 'true'
+        @manifest.execs('bar')[:command].should == 'true'
         @manifest.update_bar
-        @manifest.execs['bar'].command.should == 'true #updated'
+        @manifest.execs('bar')[:command].should == 'true #updated'
       end
 
       it "including our customizations to resources" do
-        @manifest.execs["foo"].path.should include('/sbin')
+        @manifest.execs('foo')[:path].should include('/sbin')
       end
 
       describe "and then executing" do
@@ -131,14 +131,15 @@ describe "A manifest" do
       end
 
       it "creates new resources" do
-        @manifest.should_receive(:new_resource).with(Puppet::Type::Exec, 'foo', :command => 'true').exactly(1).times
-        @manifest.should_receive(:new_resource).with(Puppet::Type::Exec, 'bar', :command => 'true').exactly(1).times
+        @manifest.should_receive(:new_resource).exactly(2).times
         @manifest.send(:evaluate_recipes)
       end
 
       it "creates new resources" do
         @manifest.send(:evaluate_recipes)
-        @manifest.execs.keys.sort.should == ['bar', 'foo']
+        ['bar', 'foo'].each do |key|
+          @manifest.exec(key).should_not be_nil
+        end
       end
 
     end

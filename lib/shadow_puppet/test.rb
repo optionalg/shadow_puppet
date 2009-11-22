@@ -1,69 +1,36 @@
-module Puppet
-  class Type
-
-    # clearing out some puppet methods that we probably won't need for testing
-    # that are also used in the params hash when defining the resource.
-    undef path
-    undef timeout
-    undef require
-
-    def params
-      @params ||= to_hash
-    end
-
-    # This allows access to resource options as methods on the resource.
-    def method_missing name, *args, &block
-      params[name.to_sym]
-    end
-  end
-end
-
 module ShadowPuppet
-  # To test manifests, access puppet resources using the plural form of the resource name.
-  # This returns a hash of all resources of that type.
-  #
-  #   manifest.execs
-  #   manifest.packages
-  #
-  # You can access resource options as methods on the resource
-  #
-  #   manifest.files['/etc/motd'].content
-  #   manifest.execs['service ssh restart'].onlyif
-  #
-  # ===Example
-  #
-  # Given this manifest:
-  #
-  #   class TestManifest < ShadowPuppet::Manifest
-  #     def myrecipe
-  #       file '/etc/motd', :content => 'Welcome to the machine!', :mode => '644'
-  #       exec 'newaliases', :refreshonly => true
-  #     end
-  #     recipe :myrecipe
-  #   end
-  #
-  # A test for the manifest could look like this:
-  #  
-  #   manifest = TestManifest.new
-  #   manifest.myrecipe
-  #   assert_match /Welcome/, manifest.files['/etc/motd']
-  #   assert manifest.execs['newaliases'].refreshonly
-  #
   class Manifest
-    # Creates an instance method for every puppet type 
-    # that either creates or references a resource
+    # Creates an pluralized instance method for every puppet type that
+    # references existing resources
     def self.register_puppet_types_for_testing
       Puppet::Type.loadall
       Puppet::Type.eachtype do |type|
         plural_type = type.name.to_s.downcase.pluralize
         #undefine the method rdoc placeholders
         undef_method(plural_type) rescue nil
+
+        # execs['wget mysqltuner.pl']
+        define_method(plural_type+'[]') do |resource_name|
+          resource(type.name.to_s.downcase,resource_name)
+        end
+
         define_method(plural_type) do |*args|
-          puppet_resources[type]
+          if args && args.flatten.size == 1
+            # execs('wget mysqltuner.pl')
+            send("#{plural_type}[]".intern, args.first)
+          else
+            # execs.keys.include?('wget mysqltuner.pl')
+            resources = catalog.instance_variable_get(:@resource_table)
+            typed_resources = resources.values.find_all { |value| value.is_a?(type) }
+            named_hash = {}
+            typed_resources.each do |resource|
+              named_hash[resource.title] = resource
+            end
+            named_hash
+          end
         end
       end
     end
     register_puppet_types_for_testing
-    
   end
 end
