@@ -108,7 +108,7 @@ module ShadowPuppet
 
     class_inheritable_accessor :recipes
     write_inheritable_attribute(:recipes, [])
-    attr_reader :catalog
+    attr_reader :catalog, :compiler, :scope, :node
     class_inheritable_accessor :__config__
     write_inheritable_attribute(:__config__, Hash.new)
 
@@ -129,7 +129,16 @@ module ShadowPuppet
 
       configure(config)
       @executed = false
-      @catalog = Puppet::Resource::Catalog.new(Facter.value(:hostname))
+      # This is only needed to create the compiler.
+      @node = Puppet::Node.new
+      # This does all of our initialization for us.
+      @compiler = Puppet::Parser::Compiler.new(@node)
+
+      # Maintains references to our resources
+      @catalog = @compiler.catalog
+
+      # Parser resources need a scope (and a source, which this has)
+      @scope = @compiler.topscope
     end
 
     # Declares that the named method or methods will be called whenever
@@ -312,8 +321,10 @@ module ShadowPuppet
 
     # Apply and clear the catalog
     def apply
-      catalog.apply
-      catalog.clear
+      # Convert our Puppet::Parser::Resource instances into Puppet::Type instances,
+      # which can actually do work on the system.
+      newcatalog = catalog.to_ral
+      newcatalog.apply
     end
 
     # Create a reference to another Puppet Resource.
@@ -333,16 +344,27 @@ module ShadowPuppet
     # Create a Puppet Resource
     def new_resource(type, title, params = {})
       params.merge!({:title => title})
-      params.merge!({:catalog => catalog})
       params.merge!({:path => ENV["PATH"]}) if type.name == :exec
-      catalog.create_resource(type.name, params)
+
+      # We want to create a Parser resource, because that's what
+      # the new builtin DSL does.  Our 'apply' method converts them,
+      # if necessary.
+      resource = Puppet::Parser::Resource.new(:type => type, :title => title, :scope => scope)
+
+      # The next release will have []/[]= methods.
+      params.each do |param, value|
+          resource.set_parameter(param, value)
+      end
+
+      # Add the resource to our catalog via the compiler.
+      compiler.add_resource resource
     end
 
     #Creates or update a new Puppet Resource.
     def create_or_update_resource(type, title, params = {})
       if resource = resource(type.name, title)
         params.each do |param, value|
-          resource[param] = value
+          resource.set_parameter(param, value)
         end
       else
         resource = new_resource(type, title, params)
