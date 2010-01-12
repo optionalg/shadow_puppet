@@ -137,7 +137,7 @@ module ShadowPuppet
       @parser = Puppet::Parser::Parser.new(:environment => Puppet[:environment])
 
       # Create a 'main' class to be the "source" for all of the resources.
-      @main_class = @parser.newclass("")
+      @main_class = @parser.newclass("") unless @parser.find_hostclass("", "")
 
       # This does all of our initialization for us.
       @compiler = Puppet::Parser::Compiler.new(@node, @parser)
