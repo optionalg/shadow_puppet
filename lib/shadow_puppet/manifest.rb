@@ -129,16 +129,25 @@ module ShadowPuppet
 
       configure(config)
       @executed = false
+
       # This is only needed to create the compiler.
-      @node = Puppet::Node.new
+      @node = Puppet::Node.new(Puppet[:certname])
+
+      # Need a parser to have the main class
+      @parser = Puppet::Parser::Parser.new(:environment => Puppet[:environment])
+
+      # Create a 'main' class to be the "source" for all of the resources.
+      @main_class = @parser.newclass("")
+
       # This does all of our initialization for us.
-      @compiler = Puppet::Parser::Compiler.new(@node)
+      @compiler = Puppet::Parser::Compiler.new(@node, @parser)
 
       # Maintains references to our resources
       @catalog = @compiler.catalog
 
       # Parser resources need a scope (and a source, which this has)
       @scope = @compiler.topscope
+      @scope.source = @main_class
     end
 
     # Declares that the named method or methods will be called whenever
